@@ -73,3 +73,30 @@ It covered six widths from 360 to 1,440 pixels, the real transfer and
 historical demand flows, and same-day departure filtering. An earlier
 iteration exposed an ambiguous stop selector in the new test. The final
 test selects two actual GTFS stops by their recorded stop codes.
+
+## Hackathon submission verification
+
+The documentation-only submission was checked against application commit
+`4ffa20d`. The verification command used the prepared Python environment,
+system Chromium and the local Caddy endpoint at port 8968:
+
+```sh
+SAFARNAMA_PYTHON=/path/to/venv/bin/python \
+SAFARNAMA_TEST_ORIGIN=http://127.0.0.1:8968 \
+SAFARNAMA_TEST_CHROMIUM=/usr/bin/chromium scripts/run_tests
+```
+
+37 backend tests, 43 ML tests and 14 Chromium tests passed. The real
+prediction lookup utility, frontend production build, Compose configuration
+and HTTP 200 liveness/readiness checks passed. Import behavior was covered
+by temporary databases in the backend suite. The original feed ZIP passed
+its member and recorded import checksum checks, and SQLite integrity, foreign
+keys and table counts were verified on the existing read-only volume. A
+full-size re-import and clean image build were not repeated in the
+limited workspace.
+
+All ten Mermaid blocks in the submission documentation were parsed and
+rendered. The proposal and technical note were exported from Markdown to
+Word and PDF. Both Word packages passed integrity and structure checks.
+All four proposal pages and five technical-note pages were rasterized and
+reviewed, including diagram, table and footer placement.
