@@ -175,3 +175,77 @@ configuration and feed, then pass the same Compose project name with
 the existing database volume attached. Normal rebuilds and restarts reuse
 the imported data. Run the import only for first setup or an intentional
 feed refresh.
+
+## PostgreSQL preparation for Neon and Render
+
+Local development and the default Compose service use SQLite. A separately
+hosted backend can use Neon by setting `SAFARNAMA_DATABASE_URL` in its
+private environment. Use the connection string from Neon and preserve its
+TLS parameters. Either a plain `postgresql://` or an explicit
+`postgresql+psycopg://` URL selects Psycopg 3. The following value is a
+placeholder.
+
+```dotenv
+SAFARNAMA_DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
+```
+
+Set the URL in Render's private service settings at rollout. Keep the frontend
+pointing at the intended API and configure the hosted backend's CORS origins
+if they are served separately. The Python server creates missing tables
+at startup. The importing role needs permission to create tables and
+insert rows. For a feed refresh, it also needs permission to truncate the
+existing GTFS tables. The packaged historical demand artifact stays on
+disk in the backend image.
+
+### Load the GTFS feed before enabling traffic
+
+Use a dedicated database or staging branch and the direct Neon connection
+for the bulk import. Export its URL privately in `SAFARNAMA_DATABASE_URL`.
+With the backend dependencies installed, run from `backend/`:
+
+```sh
+python -m scripts.import_gtfs ../feeds/delhi_buses_static_gtfs_v1.zip \
+  --postgres --report /path/to/neon-gtfs-import.json
+```
+
+The explicit `--postgres` flag selects the database in the environment.
+Without that flag the CLI retains its local SQLite file behavior.
+PostgreSQL imports use bounded batches and commit after validation.
+An existing feed requires explicit `--replace`. The refresh holds
+exclusive locks on the GTFS tables, so stop traffic and restart the app
+afterwards to refresh its cached timetable and route mapping. A failed
+replacement rolls back and retains the prior feed. Check `/ready` after
+the import, then compare key route counts with the report.
+
+### Verify on a disposable PostgreSQL instance
+
+Set `SAFARNAMA_TEST_POSTGRES_URL` to a database on a local Unix socket or
+loopback address, then run `python -m pytest -q` from `backend/`.
+The PostgreSQL integration tests create separate temporary schemas. They
+cover startup, empty and loaded readiness, rollback, schedule and route
+queries, and import reporting. Use a disposable local database for these
+tests. The runtime can use Neon's pooled endpoint, with client-side
+automatic prepared statements disabled. Direct endpoint imports are
+separate from serving HTTP traffic. Confirm storage and compute use in Neon
+before rollout. [Neon Free plan limits](https://neon.com/blog/neon-free-plan-1-gb-per-project)
+
+### Compatibility and verification
+
+The SQLite file importer uses a staged database, foreign-key PRAGMA and
+SQLite parameter binding. Those operations stay confined to SQLite.
+PostgreSQL creates the same schema, loads bounded batches with typed array
+parameters, and counts inserted rows explicitly while retaining duplicate
+reporting. Route queries preserve the existing response field names,
+case-insensitive search and null ordering across both engines. GTFS
+identifiers, ISO service dates and seconds since service midnight retain
+their existing representation.
+
+On 24 November 2026, the supplied Delhi GTFS archive was imported from
+scratch into isolated PostgreSQL 17.5 and SQLite databases. Both reports
+matched the committed import report. PostgreSQL contained 6,862 stops,
+2,574 routes, 80,357 trips, 2,737,136 stop times and 965,607 shape points.
+The database occupied 624,258,195 bytes (595.34 MiB), including indexes.
+Readiness, routes, geometry, journey search, analytics and historical demand
+were exercised on the full PostgreSQL feed. This measurement is below the
+published 1 GB free-plan storage limit. Neon measures its own project usage,
+and a hosted import and initial request still need verification.

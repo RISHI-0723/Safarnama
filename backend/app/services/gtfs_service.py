@@ -1,4 +1,4 @@
-"""Safe, repeatable static GTFS import into an indexed SQLite database."""
+"""Validate and import static GTFS into SQLite or PostgreSQL."""
 
 import csv
 import io
@@ -7,15 +7,18 @@ import os
 import sqlite3
 import tempfile
 import zipfile
-from hashlib import file_digest
 from collections import Counter
+from contextlib import closing, contextmanager
 from datetime import datetime
+from hashlib import file_digest
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import URL, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.base import Base
 from app.db import models  # noqa: F401
+from app.db.database import initialize_database, make_engine, normalize_database_url
 
 
 TABLES = {
@@ -43,6 +46,93 @@ INSERT = {
     "shapes.txt": "INSERT INTO shape_points VALUES (?,?,?,?)",
     "transfers.txt": "INSERT INTO transfers VALUES (?,?,?,?)",
 }
+
+KEY_TABLES = {"agency.txt", "stops.txt", "routes.txt", "calendar.txt", "trips.txt"}
+BATCH_SIZE = 5000
+
+
+@contextmanager
+def _sqlite_import(database_path):
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix="gtfs-", suffix=".db", dir=database_path.parent)
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        engine = make_engine(URL.create("sqlite", database=str(temp_path)))
+        try:
+            Base.metadata.create_all(engine)
+        finally:
+            engine.dispose()
+        with closing(sqlite3.connect(temp_path)) as connection, connection:
+            connection.execute("PRAGMA foreign_keys=ON")
+            yield connection
+        temp_path.replace(database_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+@contextmanager
+def _postgres_import(database_url, replace):
+    engine = make_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            initialize_database(connection)
+            tables = [Base.metadata.tables[TABLES[name][0]] for name in ORDER]
+            # The names are fixed by our own models, never supplied by the feed.
+            table_names = ", ".join(table.name for table in tables)
+            connection.exec_driver_sql(f"LOCK TABLE {table_names} IN ACCESS EXCLUSIVE MODE")
+            if any(connection.execute(select(1).select_from(table).limit(1)).first() for table in tables):
+                if not replace:
+                    raise ValueError("PostgreSQL already contains GTFS rows; use --replace to refresh the feed")
+                connection.exec_driver_sql(f"TRUNCATE TABLE {table_names}")
+            yield connection
+    finally:
+        engine.dispose()
+
+
+def _sqlite_batch(connection, name, batch, stats):
+    for values in batch:
+        try:
+            connection.execute(INSERT[name], values)
+            stats["imported"] += 1
+        except sqlite3.IntegrityError as error:
+            if "UNIQUE constraint failed" in str(error):
+                stats["duplicates"] += 1
+            else:
+                stats["rejected"] += 1
+                stats["validation_errors"][str(error)] += 1
+
+
+def _postgres_batch(connection, name, batch, stats):
+    table = Base.metadata.tables[TABLES[name][0]]
+    quote = connection.dialect.identifier_preparer.quote
+    columns = ", ".join(quote(column.name) for column in table.columns)
+    key = ", ".join(quote(column.name) for column in table.primary_key.columns)
+    arguments = ", ".join(
+        f"CAST(%s AS {column.type.compile(dialect=connection.dialect)}[])"
+        for column in table.columns
+    )
+    # One array bind per column keeps every batch small on the wire and
+    # returns an accurate inserted count without fetching individual rows.
+    inserted = connection.exec_driver_sql(f"""
+        WITH written AS (
+            INSERT INTO {quote(table.name)} ({columns})
+            SELECT * FROM unnest({arguments})
+            ON CONFLICT ({key}) DO NOTHING
+            RETURNING 1
+        )
+        SELECT count(*) FROM written
+    """, tuple(list(values) for values in zip(*batch))).scalar_one()
+    stats["imported"] += inserted
+    stats["duplicates"] += len(batch) - inserted
+
+
+def _validate_postgres_values(values):
+    for value in values:
+        if isinstance(value, str) and "\x00" in value:
+            raise ValueError("text field contains a NUL character")
+        if isinstance(value, int) and not -(2**31) <= value < 2**31:
+            raise ValueError("integer field outside PostgreSQL integer range")
 
 
 def gtfs_time(value: str) -> int | None:
@@ -141,8 +231,16 @@ def _values(name: str, row: dict[str, str], ids: dict[str, set[str]]) -> tuple:
     raise ValueError("unexpected GTFS table")
 
 
-def import_gtfs(zip_path: Path, database_path: Path, report_path: Path | None = None) -> dict:
-    """Build a replacement DB, then atomically swap it into place on success."""
+def import_gtfs(
+    zip_path: Path, database_path: Path | None = None, report_path: Path | None = None,
+    *, database_url: str | URL | None = None, replace: bool = False,
+) -> dict:
+    """Replace a SQLite file or load PostgreSQL in a rollback-safe transaction."""
+    if (database_path is None) == (database_url is None):
+        raise ValueError("Select exactly one GTFS database target")
+    postgres = database_url is not None
+    if postgres and normalize_database_url(database_url).get_backend_name() != "postgresql":
+        raise ValueError("GTFS database_url must be a PostgreSQL URL")
     with zip_path.open("rb") as feed_file:
         digest = file_digest(feed_file, "sha256").hexdigest()
     report = {"source": zip_path.name, "sha256": digest, "tables": {}, "errors": []}
@@ -189,96 +287,76 @@ def import_gtfs(zip_path: Path, database_path: Path, report_path: Path | None = 
             report["feed_info"] = feed
         else:
             report["feed_info"] = {"available": False, "total": 0, "validated": 0, "rejected": 0, "validation_errors": {}}
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-        fd, temp_name = tempfile.mkstemp(prefix="gtfs-", suffix=".db", dir=database_path.parent)
-        os.close(fd)
-        temp_path = Path(temp_name)
+        target = _postgres_import(database_url, replace) if postgres else _sqlite_import(database_path)
+        write_batch = _postgres_batch if postgres else _sqlite_batch
         try:
-            connection = None
-            engine = create_engine(f"sqlite:///{temp_path}")
-            Base.metadata.create_all(engine)
-            engine.dispose()
-            connection = sqlite3.connect(temp_path)
-            connection.execute("PRAGMA foreign_keys=ON")
-            ids = {name: set() for name in TABLES}
-            for name in ORDER:
-                if name not in names:
-                    report["tables"][name] = {"available": False, "total": 0, "imported": 0, "rejected": 0, "duplicates": 0, "missing_values": {}}
-                    continue
-                stats = {"available": True, "total": 0, "imported": 0, "rejected": 0, "skipped": 0, "duplicates": 0, "missing_values": Counter(), "validation_errors": Counter()}
-                batch = []
-                key_field = {"agency.txt": "agency_id", "stops.txt": "stop_id", "routes.txt": "route_id", "calendar.txt": "service_id", "trips.txt": "trip_id"}.get(name)
-                def flush():
-                    if not batch:
-                        return
-                    for values in batch:
-                        try:
-                            connection.execute(INSERT[name], values)
-                            stats["imported"] += 1
-                        except sqlite3.IntegrityError as error:
-                            if "UNIQUE constraint failed" in str(error):
-                                stats["duplicates"] += 1
-                            else:
+            with target as connection:
+                query = connection.exec_driver_sql if postgres else connection.execute
+                ids = {name: set() for name in TABLES}
+                for name in ORDER:
+                    if name not in names:
+                        report["tables"][name] = {"available": False, "total": 0, "imported": 0, "rejected": 0, "duplicates": 0, "missing_values": {}}
+                        continue
+                    stats = {"available": True, "total": 0, "imported": 0, "rejected": 0, "skipped": 0, "duplicates": 0, "missing_values": Counter(), "validation_errors": Counter()}
+                    batch = []
+                    def flush():
+                        if not batch:
+                            return
+                        write_batch(connection, name, batch, stats)
+                        batch.clear()
+                    with archive.open(name) as raw:
+                        for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig")):
+                            stats["total"] += 1
+                            for field, value in row.items():
+                                if not value:
+                                    stats["missing_values"][field] += 1
+                            try:
+                                values = _values(name, row, ids)
+                                if postgres:
+                                    _validate_postgres_values(values)
+                                if name in KEY_TABLES:
+                                    key = values[0]
+                                    if key in ids[name]:
+                                        stats["duplicates"] += 1
+                                        continue
+                                    ids[name].add(key)
+                                if name == "calendar_dates.txt":
+                                    ids[name].add(values[0])
+                                batch.append(values)
+                                if len(batch) >= BATCH_SIZE:
+                                    flush()
+                            except (ValueError, KeyError, TypeError) as error:
                                 stats["rejected"] += 1
                                 stats["validation_errors"][str(error)] += 1
-                    batch.clear()
-                with archive.open(name) as raw:
-                    for row in csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig")):
-                        stats["total"] += 1
-                        for field, value in row.items():
-                            if not value:
-                                stats["missing_values"][field] += 1
-                        try:
-                            values = _values(name, row, ids)
-                            if key_field:
-                                key = values[0]
-                                if key in ids[name]:
-                                    stats["duplicates"] += 1
-                                    continue
-                                ids[name].add(key)
-                            if name == "calendar_dates.txt":
-                                ids[name].add(values[0])
-                            batch.append(values)
-                            if len(batch) >= 10000:
-                                flush()
-                        except (ValueError, KeyError, TypeError) as error:
-                            stats["rejected"] += 1
-                            stats["validation_errors"][str(error)] += 1
-                flush()
-                connection.commit()
-                stats["missing_values"] = dict(stats["missing_values"])
-                stats["validation_errors"] = dict(stats["validation_errors"])
-                report["tables"][name] = stats
-            bad_order = connection.execute("""SELECT COUNT(*) FROM (
-                SELECT trip_id, stop_sequence, arrival, departure,
-                       MAX(COALESCE(departure, arrival)) OVER (
-                           PARTITION BY trip_id ORDER BY stop_sequence
-                           ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                       ) AS previous_departure
-                FROM stop_times
-            ) WHERE COALESCE(arrival, departure) < previous_departure""").fetchone()[0]
-            report["consistency"] = {"out_of_order_stop_times": bad_order}
-            for required in ("agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt"):
-                if not report["tables"][required]["imported"]:
-                    raise ValueError(f"{required}: no valid records; existing database preserved")
-            report["consistency"]["trips_without_two_stop_times"] = connection.execute("""
-                SELECT COUNT(*) FROM trips
-                WHERE (SELECT COUNT(*) FROM stop_times WHERE trip_id=trips.id) < 2
-            """).fetchone()[0]
-            if bad_order:
-                raise ValueError(f"{bad_order} stop times run backward within a trip; existing database preserved")
-            missing_shapes = connection.execute("SELECT COUNT(*) FROM trips t WHERE shape_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM shape_points s WHERE s.shape_id=t.shape_id)").fetchone()[0]
-            report["consistency"]["trips_with_missing_shape"] = missing_shapes
-            if missing_shapes and "shapes.txt" in names:
-                raise ValueError(f"{missing_shapes} trips reference missing shapes; existing database preserved")
-            connection.close()
-            temp_path.replace(database_path)
+                    flush()
+                    stats["missing_values"] = dict(stats["missing_values"])
+                    stats["validation_errors"] = dict(stats["validation_errors"])
+                    report["tables"][name] = stats
+                bad_order = query("""SELECT COUNT(*) FROM (
+                    SELECT trip_id, stop_sequence, arrival, departure,
+                           MAX(COALESCE(departure, arrival)) OVER (
+                               PARTITION BY trip_id ORDER BY stop_sequence
+                               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                           ) AS previous_departure
+                    FROM stop_times
+                ) AS sequenced WHERE COALESCE(arrival, departure) < previous_departure""").fetchone()[0]
+                report["consistency"] = {"out_of_order_stop_times": bad_order}
+                for required in ("agency.txt", "stops.txt", "routes.txt", "trips.txt", "stop_times.txt"):
+                    if report["tables"][required]["imported"] < 1:
+                        raise ValueError(f"{required}: no valid records; existing database preserved")
+                report["consistency"]["trips_without_two_stop_times"] = query("""
+                    SELECT COUNT(*) FROM trips
+                    WHERE (SELECT COUNT(*) FROM stop_times WHERE trip_id=trips.id) < 2
+                """).fetchone()[0]
+                if bad_order:
+                    raise ValueError(f"{bad_order} stop times run backward within a trip; existing database preserved")
+                missing_shapes = query("SELECT COUNT(*) FROM trips t WHERE shape_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM shape_points s WHERE s.shape_id=t.shape_id)").fetchone()[0]
+                report["consistency"]["trips_with_missing_shape"] = missing_shapes
+                if missing_shapes and "shapes.txt" in names:
+                    raise ValueError(f"{missing_shapes} trips reference missing shapes; existing database preserved")
         except Exception as error:
-            if connection is not None:
-                connection.close()
-            temp_path.unlink(missing_ok=True)
             if report_path:
-                report["errors"].append(str(error))
+                report["errors"].append(type(error).__name__ if isinstance(error, SQLAlchemyError) else str(error))
                 failure = report_path.with_suffix(".failed.json")
                 failure.parent.mkdir(parents=True, exist_ok=True)
                 failure.write_text(json.dumps(report, indent=2))

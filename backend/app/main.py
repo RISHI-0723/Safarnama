@@ -22,9 +22,8 @@ from app.api.journeys import router as journeys_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.request_metadata import RequestMetadataMiddleware
-from app.db.base import Base
 from app.db import models  # noqa: F401 - register tables with metadata
-from app.db.database import make_engine, make_session_factory
+from app.db.database import initialize_database, make_engine, make_session_factory
 from app.services.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
@@ -37,8 +36,9 @@ def create_app(settings: Settings | None = None, *, clock=None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        Base.metadata.create_all(engine)
         try:
+            with engine.begin() as connection:
+                initialize_database(connection)
             app.state.historical_demand, app.state.demand_issue = load_historical_demand(
                 settings.historical_artifact_dir, engine, settings.historical_route_mapping,
             )

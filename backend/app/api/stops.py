@@ -18,7 +18,7 @@ class StopResponse(BaseModel):
 def stops(request: Request, q: str | None = Query(None, max_length=100), limit: int = Query(100, ge=1, le=10000), offset: int = Query(0, ge=0, le=100000)):
     with request.app.state.engine.connect() as db:
         if q:
-            rows = db.execute(text("SELECT id,name,lat,lng,code FROM stops WHERE name LIKE :q ORDER BY name, id LIMIT :limit OFFSET :offset"), {"q": f"%{q}%", "limit": limit, "offset": offset}).mappings().all()
+            rows = db.execute(text("SELECT id,name,lat,lng,code FROM stops WHERE LOWER(name) LIKE LOWER(:q) ORDER BY name, id LIMIT :limit OFFSET :offset"), {"q": f"%{q}%", "limit": limit, "offset": offset}).mappings().all()
         else:
             rows = db.execute(text("SELECT id,name,lat,lng,code FROM stops ORDER BY name, id LIMIT :limit OFFSET :offset"), {"limit": limit, "offset": offset}).mappings().all()
     return [StopResponse(**row) for row in rows]

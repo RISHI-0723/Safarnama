@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
+    database_url: str = field(repr=False)
     cors_origins: tuple[str, ...]
     log_level: str
     historical_artifact_dir: Path | None = None

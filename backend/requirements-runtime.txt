@@ -6,3 +6,4 @@ httpx>=0.27,<1
 pandas>=2.2,<4
 jsonschema>=4.26,<5
 gtfs-realtime-bindings==3.0.0
+psycopg[binary]>=3.2,<4

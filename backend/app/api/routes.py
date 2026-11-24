@@ -34,10 +34,11 @@ class RouteResponse(BaseModel):
 
 @router.get("", response_model=list[RouteResponse])
 def routes(request: Request, q: str | None = Query(None, max_length=100), limit: int = Query(100, ge=1, le=3000), offset: int = Query(0, ge=0, le=100000)):
-    sql = "SELECT id,short_name AS shortName,long_name AS longName,description,agency_id AS agencyId FROM routes"
+    sql = ('SELECT id, short_name AS "shortName", long_name AS "longName", '
+           'description, agency_id AS "agencyId" FROM routes')
     if q:
-        sql += " WHERE short_name LIKE :q OR long_name LIKE :q"
-    sql += " ORDER BY short_name, id LIMIT :limit OFFSET :offset"
+        sql += " WHERE LOWER(short_name) LIKE LOWER(:q) OR LOWER(long_name) LIKE LOWER(:q)"
+    sql += " ORDER BY short_name NULLS FIRST, id LIMIT :limit OFFSET :offset"
     with request.app.state.engine.connect() as db:
         rows = db.execute(text(sql), {"q": f"%{q}%", "limit": limit, "offset": offset}).mappings().all()
     return [RouteResponse(**row) for row in rows]
@@ -46,7 +47,10 @@ def routes(request: Request, q: str | None = Query(None, max_length=100), limit:
 @router.get("/{route_id}", response_model=RouteResponse)
 def route_by_id(route_id: str, request: Request):
     with request.app.state.engine.connect() as db:
-        row = db.execute(text("SELECT id,short_name AS shortName,long_name AS longName,description,agency_id AS agencyId FROM routes WHERE id=:id"), {"id": route_id}).mappings().first()
+        row = db.execute(text('''
+            SELECT id, short_name AS "shortName", long_name AS "longName",
+                   description, agency_id AS "agencyId" FROM routes WHERE id=:id
+        '''), {"id": route_id}).mappings().first()
     if not row:
         raise HTTPException(404, "Route not found")
     return RouteResponse(**row)
@@ -57,7 +61,11 @@ def route_trips(route_id: str, request: Request, limit: int = Query(100, ge=1, l
     with request.app.state.engine.connect() as db:
         if not db.execute(text("SELECT 1 FROM routes WHERE id=:id"), {"id": route_id}).first():
             raise HTTPException(404, "Route not found")
-        rows = db.execute(text("SELECT id,service_id AS serviceId,headsign,direction_id AS directionId,shape_id AS shapeId FROM trips WHERE route_id=:id ORDER BY id LIMIT :limit OFFSET :offset"), {"id": route_id, "limit": limit, "offset": offset}).mappings().all()
+        rows = db.execute(text('''
+            SELECT id, service_id AS "serviceId", headsign,
+                   direction_id AS "directionId", shape_id AS "shapeId"
+            FROM trips WHERE route_id=:id ORDER BY id LIMIT :limit OFFSET :offset
+        '''), {"id": route_id, "limit": limit, "offset": offset}).mappings().all()
     return [dict(row) for row in rows]
 
 
