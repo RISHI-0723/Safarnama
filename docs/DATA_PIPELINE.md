@@ -40,15 +40,18 @@ on dataset size. [Cleaning source](../ml/src/clean_data.py)
 flowchart LR
     ZIP["Read GTFS archive"] --> Parse["Check headers and parse CSV members"]
     Parse --> Validate["Check IDs, dates, times, geometry and stop order"]
-    Validate --> Stage["Write staged SQLite and indexes"]
-    Stage --> Integrity["Run consistency checks"]
-    Integrity --> Swap["Replace target only after success"]
+    Validate --> Stage["Write and check staged SQLite"]
+    Validate --> Batch["Write and check PostgreSQL batches"]
+    Stage --> Swap["Replace local SQLite file"]
+    Batch --> Commit["Commit PostgreSQL transaction"]
     Swap --> Report["Import report and SHA-256"]
+    Commit --> Report
 ```
 
 The separate production importer reads members directly from the ZIP, validates
 required fields and relationships, records omissions and row failures, and
-builds a staged SQLite database beside the target. It preserves service-relative
+either stages a local SQLite database beside the target or imports into
+PostgreSQL in a transaction. It preserves service-relative
 times past 24:00 and separate recurring calendars and exceptions. The imported
 feed declares all seven weekdays for service 1, from 2025-01-01 through
 2040-01-01, with no exception or transfer records. This describes published

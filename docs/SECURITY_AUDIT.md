@@ -29,5 +29,7 @@ accepted search modes. Date-related errors describe the Delhi search policy.
 Historical demand failures return public reason codes without exposing local
 artifact paths. Release verification reran the npm production and pinned
 Python advisory checks. Both checks found zero known vulnerabilities at
-verification time. The Windows workspace and public hosting configuration
-require separate verification.
+verification time. The 24 November hosted CORS probe confirmed that the
+public stops endpoint allowed the Vercel origin. The Windows workspace and
+private hosting settings are outside the scope of that probe.
+[Hosted smoke checks](FINAL_TEST_REPORT.md#hosted-smoke-checks)

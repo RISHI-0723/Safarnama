@@ -156,3 +156,24 @@ After moving the submission documents and consolidating earlier evidence,
 production build and `docker compose config -q` successfully. The browser
 results above refer to the prior end-to-end verification of the same
 application source.
+
+## Hosted smoke checks
+
+24 November 2026. These read-only checks targeted the public deployment.
+
+| Check | Observed result |
+|---|---|
+| Vercel application | HTTP 200 and the SAFARNAMA journey planner document |
+| Chromium smoke test | Loaded all 6,862 stops from Render, selected two stops and displayed a transfer itinerary |
+| API reference | HTTP 200 at `/docs` |
+| Process and database health | HTTP 200 at `/health` and `/api/v1/health` |
+| Timetable readiness | HTTP 200 with `database: ok` and `schedules: ready` at `/ready` |
+| Cross-origin stop query | HTTP 200 with `Access-Control-Allow-Origin: https://safarnama-eosin.vercel.app` |
+| Hosted analytics | 2 agencies, 6,862 stops, 2,574 routes, 80,357 trips and 2,737,136 stop times match the import report |
+| Historical timetable query | 12 alternatives from stop 2640 to 3250 on 27 November 2026 at 08:35 IST in historical mode, including one-transfer journeys |
+| Data validation | The supplied GTFS ZIP matched the committed import checksum. The hosted prediction checksum and row count matched the packaged export. |
+| Shipped demand artifact | 20 mapped directional routes and 3,360 estimates. Route 717AUP returned 82.6 estimated ticketed passengers for the Friday 08:00 bucket. |
+
+The earlier test suite results above describe the local verification runs.
+Hosted checks did not access provider dashboards or database credentials.
+[Live site](https://safarnama-eosin.vercel.app/) · [Readiness](https://safarnama-api-s6zs.onrender.com/ready) · [Import report](../backend/data/ingestion_report.json) · [Deployment guide](DEPLOYMENT_GUIDE.md)

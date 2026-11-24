@@ -1,9 +1,98 @@
 # Deployment guide
 
-The tested deployment runs Caddy and FastAPI with Docker Compose. Caddy serves
-the production Vite build, handles SPA paths and proxies the API on the same
-origin. FastAPI uses SQLite on the persistent `transit` volume. One application
-replica with a local volume is the supported starting point.
+## Hosted production
+
+The public deployment has separate frontend and API origins. The frontend
+runs on Vercel, the FastAPI backend runs on Render, and the hosted timetable
+uses Neon PostgreSQL. The Compose instructions later in this guide use a
+local SQLite database.
+
+- [Vercel application](https://safarnama-eosin.vercel.app/)
+- [Render API origin](https://safarnama-api-s6zs.onrender.com/) · [OpenAPI UI](https://safarnama-api-s6zs.onrender.com/docs)
+- [API readiness](https://safarnama-api-s6zs.onrender.com/ready)
+- [Source repository](https://github.com/RISHI-0723/Safarnama)
+
+### Vercel frontend
+
+For a fresh deployment, import the GitHub repository into Vercel and select
+`main` as the production branch. Use these settings with the repository's
+Vite configuration:
+
+| Setting | Value |
+|---|---|
+| Root directory | Repository root |
+| Framework preset | Vite |
+| Install command | `npm ci` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Frontend build variable | `VITE_API_BASE_URL=https://safarnama-api-s6zs.onrender.com/api/v1` |
+
+Vite injects this value when it builds the frontend. It is publicly visible
+in the bundle. Use the versioned prefix rather than an individual endpoint.
+The current interface uses hash-based navigation. [Vercel Vite guide](https://vercel.com/docs/frameworks/frontend/vite)
+
+### Render backend and Neon
+
+Connect the same GitHub repository and production branch to a Render Docker
+web service. Set the Dockerfile path to `backend/Dockerfile` and keep the
+build context at the repository root. The image needs access to both
+`backend/` and the packaged `ml/` files.
+
+The Dockerfile starts Uvicorn on `0.0.0.0:8000`. Use the image command and
+ensure Render routes traffic to that listener. For a fresh service, set
+`PORT=8000` to match the image listener. If a service explicitly
+overrides its start command, bind Uvicorn to the assigned `$PORT` instead
+and keep the service port consistent. [Render web services](https://render.com/docs/web-services)
+
+| Render variable | Purpose |
+|---|---|
+| `SAFARNAMA_DATABASE_URL` | Private Neon PostgreSQL connection string. Keep the TLS options in the URL provided by Neon. |
+| `SAFARNAMA_CORS_ORIGINS` | Exact comma-separated trusted origins. Include `https://safarnama-eosin.vercel.app` without a trailing slash. |
+
+Use a hosted PostgreSQL connection for Render. Local development can use the
+default SQLite file. Keep the database string in the backend environment.
+[Neon and GTFS import](#postgresql-and-neon-data-operations)
+
+### Health checks and production verification
+
+| Endpoint | What it checks |
+|---|---|
+| `/health` | Process liveness after startup. It performs no database query. |
+| `/api/v1/health` | Connectivity to the configured database. |
+| `/ready` | Database access and the presence of stops, trips, stop times, and either a recurring service calendar or a date that adds service. |
+
+Set Render's health check path to `/health` when bootstrapping a service
+with an empty feed. Wait for `/ready` before treating that service as ready
+for commuter traffic. With a loaded database, `/ready` can serve as the
+stricter Render probe. [Render health-check settings](https://render.com/docs/health-checks)
+
+```bash
+api=https://safarnama-api-s6zs.onrender.com
+curl -fsS --max-time 90 "$api/health"
+curl -fsS --max-time 90 "$api/api/v1/health"
+curl -fsS --max-time 90 "$api/ready"
+curl -fsS --max-time 90 "$api/api/v1/demand/coverage?limit=1"
+curl -fsS --max-time 90 -D - -o /dev/null \
+  -H 'Origin: https://safarnama-eosin.vercel.app' "$api/api/v1/stops?limit=1"
+```
+
+A ready response is HTTP 200 with `database: ok` and `schedules: ready`.
+The stop request should allow the Vercel origin in the CORS response header.
+Verify stop selection and a journey on the public website, and compare
+`/api/v1/analytics` with the completed import report.
+[Hosted smoke-check evidence](FINAL_TEST_REPORT.md#hosted-smoke-checks)
+
+### Troubleshooting the hosted service
+
+| Symptom | What to check |
+|---|---|
+| A first request takes longer than later requests | Render Free can spin down after 15 minutes without inbound traffic. Allow a cold start and retry the health and readiness probes before checking the UI again. |
+| `/health` succeeds but `/ready` returns `database: ok, schedules: missing` | Verify the Render database setting and that the intended Neon database contains the imported feed. The SQLite fallback may also produce this response if the hosted variable is absent. |
+| `/api/v1/health` returns 503 or startup fails | Check the private connection setting, credentials, TLS options, and PostgreSQL availability. |
+| `/ready` returns `database: unavailable, schedules: unknown` | Check connectivity, table availability and query permissions in the intended database. |
+| Website loads but stop search fails | Check the deployed frontend API prefix, Render readiness and the exact configured frontend origin. |
+
+[Render Free service behavior](https://render.com/docs/free)
 
 ## Local or staging
 
@@ -44,7 +133,7 @@ secrets:
     file: /etc/ssl/certs/ca-certificates.crt
 ```
 
-## Public HTTPS on a Docker host
+## Alternative self-hosted HTTPS with Compose
 
 1. Point a DNS A/AAAA record for the chosen hostname at the Docker host and
    allow inbound TCP 80 and 443. Keep backend port 8000 internal.
@@ -65,10 +154,7 @@ secrets:
 4. Inspect service logs with `docker compose logs --tail=100 backend frontend`.
    Preserve both the transit data and Caddy certificate volumes.
 
-The public deployment requires a public host, hostname and access to configure
-its DNS and ports. No public target or DNS access was supplied.
-
-## Feed updates and rollback
+## Local SQLite feed updates and rollback
 
 Keep the source feed outside Git. Back up the existing database and ingestion
 report before replacing either. Stop the backend before a feed update because
@@ -83,7 +169,7 @@ same volume and start the stack. Avoid `docker compose down -v` unless deleting
 the data and certificates is intended. Do not run multiple imports against
 the same volume concurrently.
 
-## Separate frontend and backend hosting
+## Alternative standalone frontend and backend
 
 - Build the static frontend using `npm ci && npm run build` and serve `dist/`.
   For a separate API origin, set `VITE_API_BASE_URL=https://api.example.org/api/v1`
@@ -120,7 +206,7 @@ under `/api/v1`. Check readiness and the example lookup after changing
 backend URLs, feeds, or artifacts. No original ETM data or credentials
 are required for the shipped demo export.
 
-## Data verification and backups
+## Feed verification and backups
 
 Run `scripts/validate_data feeds/delhi_buses_static_gtfs_v1.zip --origin http://127.0.0.1:8080`
 to verify ZIP integrity, the archive checksum and historical coverage on the
@@ -152,9 +238,9 @@ vehicle responses from `/api/v1/live/vehicles` without printing the key or
 query URL. The feed contains positions. It supplies no verified passenger
 occupancy for the app. [Apply for Delhi live access](https://otd.delhi.gov.in/data/realtime/)
 
-Run `scripts/run_tests` for local automated verification. Hosted verification
-remains unconfigured on the submission branch. Keep private feed download
-credentials in an authorized local or deployment environment.
+Run `scripts/run_tests` for local automated verification. Use the public
+probes above for hosted verification. Store private feed download credentials
+in an authorized local or deployment environment.
 
 ## Update an existing Windows Docker Desktop installation
 
@@ -176,7 +262,7 @@ the existing database volume attached. Normal rebuilds and restarts reuse
 the imported data. Run the import only for first setup or an intentional
 feed refresh.
 
-## PostgreSQL preparation for Neon and Render
+## PostgreSQL and Neon data operations
 
 Local development and the default Compose service use SQLite. A separately
 hosted backend can use Neon by setting `SAFARNAMA_DATABASE_URL` in its
@@ -197,11 +283,13 @@ insert rows. For a feed refresh, it also needs permission to truncate the
 existing GTFS tables. The packaged historical demand artifact stays on
 disk in the backend image.
 
-### Load the GTFS feed before enabling traffic
+### Initial GTFS import for a fresh hosted database
 
-Use a dedicated database or staging branch and the direct Neon connection
-for the bulk import. Export its URL privately in `SAFARNAMA_DATABASE_URL`.
-With the backend dependencies installed, run from `backend/`:
+The current hosted feed has been loaded. For a new empty database, use a
+dedicated database or staging branch and a direct Neon connection. Export
+its URL privately in `SAFARNAMA_DATABASE_URL`. With the backend dependencies
+installed, run from `backend/` on a trusted machine that holds the authorized
+GTFS archive:
 
 ```sh
 python -m scripts.import_gtfs ../feeds/delhi_buses_static_gtfs_v1.zip \
@@ -247,5 +335,6 @@ matched the committed import report. PostgreSQL contained 6,862 stops,
 The database occupied 624,258,195 bytes (595.34 MiB), including indexes.
 Readiness, routes, geometry, journey search, analytics and historical demand
 were exercised on the full PostgreSQL feed. This measurement is below the
-published 1 GB free-plan storage limit. Neon measures its own project usage,
-and a hosted import and initial request still need verification.
+published 1 GB free-plan storage limit. Neon meters its own project usage.
+The live analytics and readiness probes separately confirm the hosted
+timetable is available. [Hosted verification](FINAL_TEST_REPORT.md#hosted-smoke-checks)

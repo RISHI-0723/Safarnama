@@ -50,8 +50,10 @@ mean WAPE reported in the research was 58.19%. [Model-selection report](../ml/ou
 
 ## Software validation
 
-37 backend, 43 ML and 14 Chromium tests passed. The frontend production
+The local verification run recorded 37 backend, 43 ML and 14 Chromium
+tests passing. The frontend production
 build, Compose configuration and API liveness/readiness checks passed.
 The runtime browser verification reused the imported Delhi database in an
 existing container. A clean container-image build remains unverified in this
-workspace. [Full test report](FINAL_TEST_REPORT.md)
+workspace. The later hosted checks use the public Vercel and Render
+endpoints. [Full test report](FINAL_TEST_REPORT.md) · [Hosted smoke checks](FINAL_TEST_REPORT.md#hosted-smoke-checks)

@@ -21,11 +21,12 @@ tests and the authorized feed. [Deployment and verification](DEPLOYMENT_GUIDE.md
 
 ## Submission and deployment status
 
-The current application is verified for local demonstration with the
-supplied Delhi feed and demo demand artifact. A clean image build on the
-target host, Windows Docker Desktop restart, production capacity checks,
-public hosting, and an end-to-end authorized live-provider run remain
-unverified. The committed project provides local verification scripts.
+The public Vercel frontend and Render API are running with the imported
+Delhi timetable and historical demand artifact. Local verification uses
+the supplied feed and committed scripts. A clean rebuild on a separate
+target host, Windows Docker Desktop restart, production load tests and an
+end-to-end authorized live-provider run remain unverified.
+[Live site](https://safarnama-eosin.vercel.app/) · [Hosted smoke checks](FINAL_TEST_REPORT.md#hosted-smoke-checks)
 
 Journey search covers direct and one-transfer routes. Its six-hour window
 applies to both boardings, while arrivals may occur later. Feed-declared

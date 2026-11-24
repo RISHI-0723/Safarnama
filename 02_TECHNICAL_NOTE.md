@@ -18,13 +18,14 @@ flowchart TD
     Clean --> Match["V2 and V3 stop and order checks"]
     Match --> Research["Experimental candidate-run reconstruction"]
     Clean --> Export["Route weekday hour CSV, manifest and schema"]
-    GTFS["Static GTFS ZIP"] --> SQLite["Validated SQLite schedule"]
+    GTFS["Static GTFS ZIP"] --> Schedule["Validated PostgreSQL or SQLite timetable"]
     GTFS --> Match
-    SQLite --> API["FastAPI journey, geometry and analytics"]
-    SQLite --> Crosswalk["Verify directional route IDs"]
+    Schedule --> API["FastAPI journey, geometry and analytics"]
+    Schedule --> Crosswalk["Verify directional route IDs"]
     Export --> Crosswalk
     Crosswalk --> API
-    API --> UI["Caddy and React application"]
+    Web["Vercel React frontend"] --> API
+    Local["Local React and Caddy"] --> API
 ```
 
 ## Data acquisition, cleaning and GTFS
@@ -41,7 +42,7 @@ The challenge brief reports roughly 2.56 million October 2026 ticket records and
 
 `clean_data.py` discovers local CSVs and reads 100,000 rows per chunk. It normalizes route, vehicle and stop strings, coerces numeric and datetime fields, and rejects invalid essential values. A missing destination can survive. The script assumes the provided clock is IST, has no explicit ticket deduplication, and concatenates accepted and rejected chunks to Parquet. The runtime interprets lookup time in Asia/Kolkata.
 
-The GTFS importer reads archive members directly, validates operators, stop IDs, coordinates, calendar entries, trips, stop order and shape references, and stages the database before replacement. It records failures and the original checksum. The supplied archive yielded 6,862 stops, 2,574 routes, 80,357 trips, 2,737,136 stop-time records and 965,607 shape points. One recurring calendar covered all seven weekdays in the published validity range. The feed supplied no exception or transfer records. [Data dictionary](docs/DATA_DICTIONARY.md)
+The GTFS importer reads archive members directly, validates operators, stop IDs, coordinates, calendar entries, trips, stop order and shape references, and validates a staged SQLite file or a PostgreSQL transaction before publishing the import. It records failures and the original checksum. The supplied archive yielded 6,862 stops, 2,574 routes, 80,357 trips, 2,737,136 stop-time records and 965,607 shape points. One recurring calendar covered all seven weekdays in the published validity range. The feed supplied no exception or transfer records. [Data dictionary](docs/DATA_DICTIONARY.md)
 
 ## Directional stop matching and load research
 
@@ -71,13 +72,13 @@ WAPE is total absolute error divided by total actual demand. Training used 1–2
 
 ## Planner, API and interface
 
-SQLite stores operators, stops, calendars, exceptions, routes, trips, ordered stop times, shape points and transfer rules. The stop/departure composite index and trip/sequence key support schedule search. The planner resolves active service dates including GTFS times past 24:00, clamps same-day upcoming searches against the Delhi clock, and scans direct and one-transfer boardings within a bounded window. It enforces explicit transfer prohibitions and requires a positive published minimum when changing across distinct stops. It deduplicates by route, exact timing and ordered stops and ranks by arrival, with an optional transfer penalty.
+Hosted PostgreSQL and local SQLite store operators, stops, calendars, exceptions, routes, trips, ordered stop times, shape points and transfer rules. The stop/departure composite index and trip/sequence key support schedule search. The planner resolves active service dates including GTFS times past 24:00, clamps same-day upcoming searches against the Delhi clock, and scans direct and one-transfer boardings within a bounded window. It enforces explicit transfer prohibitions and requires a positive published minimum when changing across distinct stops. It deduplicates by route, exact timing and ordered stops and ranks by arrival, with an optional transfer penalty.
 
-FastAPI exposes timetable, geometry, demand, analytics, crowding status and process readiness. The React client displays schedule legs, stop markers, route geometry and transfer details independently of the historical estimate. The segment provider returns null passenger load and capacity when unvalidated. Caddy serves the app and proxies API traffic on one origin. The dashboard separates scheduled counts from historical demand. [API guide](docs/API_DOCUMENTATION.md)
+FastAPI exposes timetable, geometry, demand, analytics, crowding status and health and readiness checks. The React client displays schedule legs, stop markers, route geometry and transfer details independently of the historical estimate. The segment provider returns null passenger load and capacity when unvalidated. Vercel serves the public app, which calls the Render API. Local Compose uses Caddy to proxy API traffic on one origin. The dashboard separates scheduled counts from historical demand. [API guide](docs/API_DOCUMENTATION.md)
 
 ## Testing, reproducibility and remaining work
 
-The verified release candidate passed 37 backend tests, 43 ML tests and 14 Chromium tests. Coverage includes timetable validity, overnight search, duplicate removal, unavailable states, maps and responsive screens. The production frontend build, Compose validation and API probes passed. Browser tests used the real imported Delhi data and the original persistent volume, plus intentional error-path fixtures. Runtime verification reused an existing Docker container. The test report records the clean-build and external-data limits.
+The earlier local release candidate passed 37 backend tests, 43 ML tests and 14 Chromium tests. Coverage includes timetable validity, overnight search, duplicate removal, unavailable states, maps and responsive screens. The production frontend build, Compose validation and API probes passed. Browser tests used the real imported Delhi data and the original persistent volume, plus intentional error-path fixtures. Runtime verification reused an existing Docker container. The test report also records the clean-build and external-data limits and the later public deployment checks.
 
 Run the documented setup and data validation to reproduce the demo. Full research regeneration needs the authorized October CSV and local intermediate reports. Key assumptions are that the ticket issue clock follows IST, GTFS captures scheduled service and the exact directional crosswalk is valid for the shipped feed. Passholders, clock differences, inconsistent destinations and missing transactions can bias the historical signal. Future work requires a temporal holdout after model selection, independent physical-trip matching and ground truth for segment loads and capacities. [Reproducibility](docs/REPRODUCIBILITY.md) · [Final verification](docs/FINAL_TEST_REPORT.md)
 

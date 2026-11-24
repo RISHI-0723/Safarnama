@@ -1,161 +1,187 @@
-# SAFARNAMA | Crowdedness-Aware Delhi Bus Journey Planner
+# SAFARNAMA — Crowdedness-Aware Delhi Bus Journey Planner
 
 **Transport Stack Hackathon 2026 · Problem Statement 2 · Phase 1**
 
-SAFARNAMA combines Delhi's static bus timetable with historical electronic ticket machine (ETM) data. Commuters can compare scheduled journeys, see where to transfer and check the historical ticket demand for covered routes. The Phase 1 prototype displays evidence and coverage so users can tell when information about comfort is unavailable.
+Plan Delhi bus journeys using published schedules, compare direct and
+one-transfer options, and explore how historical ticket demand varies across
+covered routes and hours. **[Open the live journey planner](https://safarnama-eosin.vercel.app/)**
 
-## Problem
+## Live application
 
-Journey planners usually rank routes by duration or transfers. That serves time-sensitive decisions but gives commuters little context on passenger demand. Historical ticket counts can show when a route tends to see more ticketed activity. Reliable crowdedness-aware ranking needs separately validated passenger-load estimates for individual stretches.
+| Service | Link |
+|---|---|
+| Website · Vercel | [Open SAFARNAMA](https://safarnama-eosin.vercel.app/) |
+| Backend API · Render | [API origin](https://safarnama-api-s6zs.onrender.com/) · [Interactive API docs](https://safarnama-api-s6zs.onrender.com/docs) |
+| API readiness | [Check timetable readiness](https://safarnama-api-s6zs.onrender.com/ready) |
+| Source and submission | [GitHub repository](https://github.com/RISHI-0723/Safarnama) |
 
-## Solution and features
+The Vercel frontend calls the separately hosted Render backend over HTTPS.
+The backend uses Neon PostgreSQL for hosted timetable data. The API origin
+is the base URL. Open `/docs` for the interactive reference or use the
+`/api/v1` routes for data. Render Free services can take longer to respond
+after inactivity. [Deployment guide](docs/DEPLOYMENT_GUIDE.md) · [Render Free service behavior](https://render.com/docs/free)
 
-The schedule planner uses the imported GTFS feed for routing and maps. A
-separate historical-demand service gives covered journeys context about
-ticket activity.
+## The commuter problem
 
-- Find direct and one-transfer journeys, ranked by scheduled arrival or with a transfer penalty.
-- Inspect Delhi-time schedules, stop-by-stop itineraries and verified GTFS map geometry.
-- Look up historical ticket demand by directional route, weekday and hour, with observation counts and variability when available.
-- Explore network statistics, scheduled services and historical demand coverage.
-- See explicitly when a route or trip segment lacks evidence.
+Delhi bus riders need to compare scheduled departures, transfers and journey
+times across a large network. A timetable gives them a basis for choosing a
+route, while past ticket activity can add context about recurring demand.
+Understanding how crowded an individual bus is requires separate vehicle and
+segment observations.
 
-## Architecture
+## What SAFARNAMA delivers
+
+- Search for boarding and alighting stops and plan journeys in Delhi time.
+- Compare direct and one-transfer itineraries using **Fastest** or **Balanced**. Balanced applies a transfer penalty to the schedule ranking.
+- Inspect boarding, alighting and transfer details, with route geometry from published GTFS shapes.
+- Explore stops, routes, scheduled departures and network analytics.
+- See historical ticket-demand estimates for verified directional route and hour combinations. The UI gives an explicit unavailable status when demand or segment crowding lacks evidence.
+
+## Screenshots
+
+*Gallery placeholder.* The repository currently contains illustrations and stop
+thumbnails. Future screenshots can go under `docs/screenshots/` with captions
+for the journey planner, route explorer and network analytics. [View the live interface](https://safarnama-eosin.vercel.app/)
+
+## System architecture
 
 ```mermaid
 flowchart LR
-    ETM["Authorized ETM tickets"] --> Clean["Clean ticket records"]
-    Clean --> Match["Route-aware stop matching"]
-    Match --> Order["Validate GTFS stop order"]
-    Order --> Research["Experimental load reconstruction"]
-    Clean --> Demand["Route-hour aggregation"]
-    Demand --> Mean["Historical mean export"]
-    GTFS["Delhi static GTFS"] --> Match
-    GTFS --> Import["Validate and import"]
-    Import --> SQLite["Indexed SQLite"]
-    SQLite --> Planner["Schedule journey planner"]
-    Planner --> API["FastAPI"]
-    Mean --> API
-    API --> UI["React planner, maps and analytics"]
-    UI --> Commuter["Commuter"]
+    User["Commuter"] --> Web["Vercel · React and Vite"]
+    Web --> API["Render · FastAPI"]
+    API --> PG["Neon PostgreSQL · timetable"]
+    GTFS["Authorized Delhi GTFS archive"] --> Import["Validate and import"]
+    Import --> PG
+    Import --> SQLite["SQLite · local development"]
+    SQLite --> Local["Local FastAPI"]
+    ETM["October ETM research"] --> Model["Directional route-hour historical means"]
+    Model --> Files["Packaged CSV, manifest and route crosswalk"]
+    Files --> API
+    Files --> Local
 ```
 
-## Technology stack and integration
-
-| Layer | Tools and responsibilities |
+| Layer | Technologies |
 |---|---|
-| Frontend | React, Vite, Axios, Leaflet and Recharts serve journey searches, maps and analytics. |
-| Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy and SQLite validate input, query scheduled service, and serve data and historical estimates. |
-| ML | Pandas and RapidFuzz support ticket processing and stop matching. CatBoost is the evaluation comparison. The runtime uses the historical mean. |
-| Deployment and verification | Docker Compose and Caddy serve the app locally. Pytest and Playwright exercise the runtime. |
+| Frontend | React, Vite, Axios, React Router, Leaflet and Recharts |
+| Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy and Psycopg 3 |
+| Database | Neon PostgreSQL for hosting and SQLite for local development |
+| Data engineering | GTFS ZIP/CSV validation, service calendars, ordered stop times and shape import |
+| Machine learning | Pandas and RapidFuzz for research preparation, historical mean for inference, CatBoost for comparison |
+| Deployment | Vercel frontend, Render Docker backend, Docker Compose and Caddy for local operation |
+| Testing | Pytest and Playwright with Chromium |
 
-The React planner fetches schedules and geometry through FastAPI backed by
-the imported SQLite timetable. The historical adapter checks the model
-manifest, response schema and directional GTFS crosswalk before returning
-an estimate. The frontend presents demand and segment crowding separately.
-[Architecture](docs/ARCHITECTURE.md) · [API guide](docs/API_DOCUMENTATION.md)
+[Architecture and request flow](docs/ARCHITECTURE.md) · [API documentation](docs/API_DOCUMENTATION.md)
 
-## Data and ML methodology
+## Delhi GTFS import
 
-Authorized October 2026 ETM records are cleaned and aggregated into
-route-weekday-hour means. Stop matching and GTFS order validation support
-separate load experiments. On the held-out top-20 comparison, the
-historical mean achieved 29.52% WAPE versus 45.51% for CatBoost. That
-window informed model selection. The shipped model was refit using the
-full month and covers 20 mapped directional GTFS routes.
-[Data pipeline](docs/DATA_PIPELINE.md) · [ML evaluation](docs/ML_EVALUATION_REPORT.md)
+The completed import report records the following counts. The hosted analytics
+endpoint returned the same agency, stop, route, trip and stop-time counts on
+24 November 2026. [Committed import report](backend/data/ingestion_report.json) · [Live analytics API](https://safarnama-api-s6zs.onrender.com/api/v1/analytics)
+
+| Dataset | Imported records |
+|---|---:|
+| Agencies | 2 |
+| Stops | 6,862 |
+| Routes | 2,574 |
+| Calendars | 1 |
+| Trips | 80,357 |
+| Stop times | 2,737,136 |
+| Shape points | 965,607 |
+| Calendar dates | 0 |
+| Transfers | 0 |
+| Rejected records | 0 |
+
+Zero transfer records means the supplied feed has no explicit GTFS transfer
+entries. The planner can still infer same-stop connections between scheduled
+legs, applying boarding order, service calendars and wait-time constraints.
+[Journey planner validation](docs/JOURNEY_PLANNER_VALIDATION.md)
+
+## Historical demand methodology
+
+The research cleans October 2026 electronic ticket machine (ETM) records,
+matches stops to directional GTFS routes, checks the order of matched stops,
+and aggregates ticketed passengers by route, weekday and hour. The published
+research comparison trained on 1–24 October and used 25–31 October for model
+selection. On its top-20 slice, the historical mean achieved 29.52% weighted
+absolute percentage error (WAPE), compared with 45.51% for CatBoost. The
+selected mean was refit on the full month.
+
+The hosted coverage API reported **20 mapped directional routes and 3,360
+route-weekday-hour estimates**. These estimates represent historical ticketed
+activity across trips on a route-hour. Actual live occupancy requires
+vehicle-level boarding and alighting observations, trip identity, and
+capacity evidence. [Data pipeline](docs/DATA_PIPELINE.md) · [ML evaluation](docs/ML_EVALUATION_REPORT.md) · [Live coverage API](https://safarnama-api-s6zs.onrender.com/api/v1/demand/coverage?limit=1)
 
 ## Repository structure
 
-| Path | Role |
+| Path | Contents |
 |---|---|
-| `01_PROJECT_PROPOSAL.md`, `02_TECHNICAL_NOTE.md` | Hackathon submission documents |
-| `src/`, `public/` | Frontend source and static assets |
-| `backend/` | FastAPI, GTFS import, SQLite access and backend tests |
-| `ml/` | Research, predictor, validated demo artifact, manifest and tests |
-| `scripts/`, `tests/` | Setup, data checks and browser tests |
-| `deploy/`, `compose.yaml` | Container images, Caddy and persistent data configuration |
+| `src/`, `public/` | React frontend and static assets |
+| `backend/` | FastAPI, database adapters, GTFS importer, Dockerfile and backend tests |
+| `ml/` | Research, inference code, validated demand export, manifest and ML tests |
+| `scripts/`, `tests/` | Local setup, data validation and browser tests |
+| `deploy/`, `compose.yaml` | Caddy and local container deployment |
 | `docs/` | Technical documentation and verification evidence |
+| `01_PROJECT_PROPOSAL.md`, `02_TECHNICAL_NOTE.md` | Hackathon submission documents |
 
-## Setup and environment
+## Configuration and local setup
 
-Install Docker with Compose v2 for the container setup. Create `feeds/` and
-place the authorized archive at `feeds/delhi_buses_static_gtfs_v1.zip`.
-Use `.env.example` as the template for local Compose settings.
-Compose defaults to a loopback address. Keep credentials in an untracked
-local environment file. The live feed stays disabled by default and
-requires authorized credentials. [Environment configuration](docs/REPRODUCIBILITY.md)
+| Variable | Purpose |
+|---|---|
+| `VITE_API_BASE_URL` | Public API prefix set at frontend build time. The hosted prefix is `https://safarnama-api-s6zs.onrender.com/api/v1`. |
+| `SAFARNAMA_DATABASE_URL` | Server-side database connection. Render uses Neon PostgreSQL. The local backend defaults to SQLite. |
+| `SAFARNAMA_CORS_ORIGINS` | Server-side list of trusted frontend origins. The hosted frontend origin is `https://safarnama-eosin.vercel.app`. |
 
-## Run the demo
+Use Python 3.12, Node 22.12 or later, and Bash for the setup scripts. Install
+Docker with Compose v2 for the combined verification command. Keep credentials
+in the server environment and use the environment examples as references.
+Obtain the authorized GTFS ZIP separately and place it in `feeds/`.
+[Reproducibility guide](docs/REPRODUCIBILITY.md)
 
-Run from the repository root for a **first installation**.
-
-```sh
-cp .env.example .env
-docker compose build
-docker compose run --rm backend python -m scripts.import_gtfs \
-  /feeds/delhi_buses_static_gtfs_v1.zip --database /data/safarnama.db \
-  --report /data/ingestion_report.json
-docker compose up -d --wait
-curl -fsS http://127.0.0.1:8080/ready
+```bash
+git clone https://github.com/RISHI-0723/Safarnama.git
+cd Safarnama
+mkdir -p feeds
+# Place delhi_buses_static_gtfs_v1.zip in feeds/ before importing.
+scripts/setup
+scripts/validate_data feeds/delhi_buses_static_gtfs_v1.zip
+scripts/import_gtfs feeds/delhi_buses_static_gtfs_v1.zip
+scripts/run_backend --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8080`. For a known transfer example, choose **Anand Vihar ISBT → Shivaji Stadium Terminal**, **23 November 2026 at 08:35 IST**, using historical timetable mode when the date has passed. For a demand example, use **Badarpur Border (T) → Kapashera Crossing**, stop code `EA96DE52`, on **27 November 2026 at 08:35 IST**, then expand a direct **717AUP** journey. For an existing Docker installation, retain the Compose project and database volume on upgrade. [Deployment and Windows setup](docs/DEPLOYMENT_GUIDE.md)
+Setup installs pinned backend dependencies in `backend/.venv` and runs
+`npm ci`. The import creates a local SQLite timetable. For local SQLite, leave
+`SAFARNAMA_DATABASE_URL` unset. Serving the frontend through the Vite proxy
+uses the same browser origin. [Environment example](.env.example) In a second terminal
+at the repository root, use the Vite proxy to reach the backend:
 
-## Local development and tests
-
-Local development uses Python 3.12, Node 22.12+ and Bash. Run `scripts/setup`,
-then `scripts/import_gtfs feeds/delhi_buses_static_gtfs_v1.zip` for a new local
-database. Start `scripts/run_backend` and `scripts/run_frontend` in separate
-terminals. [Local setup and reproducibility](docs/REPRODUCIBILITY.md)
-
-```sh
-scripts/run_tests
+```bash
+SAFARNAMA_BACKEND_ORIGIN=http://127.0.0.1:8000 scripts/run_frontend
 ```
 
-To include Chromium, install it with `npx playwright install chromium` and
-set `SAFARNAMA_TEST_ORIGIN` to the running app, such as
-`http://127.0.0.1:8080` for Compose.
+Open `http://localhost:5173`. For the standalone verification suite, run
+`scripts/run_tests`. To include browser tests, install Chromium with
+`npx playwright install chromium`, start the app with the imported feed and
+run `SAFARNAMA_TEST_ORIGIN=http://127.0.0.1:5173 scripts/run_tests`.
+[Local Docker setup](docs/DEPLOYMENT_GUIDE.md#local-or-staging) · [Test history](docs/FINAL_TEST_REPORT.md)
 
-## Verified results
+## Project status and limits
 
-| Measure | Result |
-|---|---:|
-| Static GTFS | 6,862 stops, 2,574 routes, 80,357 trips |
-| Schedule detail | 2,737,136 stop times, 965,607 shape points |
-| Member 1 historical processing | 1,317,730 cleaned tickets representing 1,422,016 ticketed passengers |
-| V3 ordered stop pairs | 826,960 records, 62.76% of cleaned tickets |
-| Historical demo coverage | 20 directional routes, 3,360 route-weekday-hour estimates |
-| Top-20 model selection WAPE | 29.52% historical mean, 45.51% CatBoost |
+The public site and API are deployed. The 24 November 2026 checks verified
+the site, API liveness and timetable readiness, Vercel-origin access and the
+hosted historical-demand coverage. Schedule search and historical demand are
+available now. The import and evaluation evidence is versioned alongside the
+application. [Verification record](docs/FINAL_TEST_REPORT.md#hosted-smoke-checks)
 
-The matching and model-selection figures come from the preserved research
-reports. Import, demo coverage and runtime lookup can be checked
-independently. [Evaluation and results](docs/EVALUATION_AND_RESULTS.md)
+The historical model covers the reviewed routes only. Validated live
+occupancy, seat availability and comfort-aware ranking require additional
+evidence. Live vehicle tracking depends on provider authorization and
+configuration. Future work includes independent validation, broader demand
+coverage and measured segment-level passenger load.
+[Limitations and future work](docs/LIMITATIONS_AND_FUTURE_WORK.md)
 
-Repository verification passed 37 backend and 43 ML tests, the frontend
-production build, and Compose configuration validation. The previous
-end-to-end hackathon run passed 14 Chromium tests on the imported Delhi
-feed. [Final test report](docs/FINAL_TEST_REPORT.md)
+## Submission and technical documentation
 
-## Limitations
-
-The ticket-demand estimate represents historical ticket activity across
-trips in a route-hour. Validated segment occupancy, available seats and
-comfort ranking remain unavailable. The prototype was verified for local
-demonstration. A fresh production deployment and end-to-end authorized
-live-feed check remain unverified. [Limitations and future work](docs/LIMITATIONS_AND_FUTURE_WORK.md)
-
-## Submission documents
-
-- [Project proposal](01_PROJECT_PROPOSAL.md)
-- [Technical note](02_TECHNICAL_NOTE.md)
-
-## Technical documentation
-
-- Engineering · [Architecture](docs/ARCHITECTURE.md) · [Data pipeline](docs/DATA_PIPELINE.md) · [Data dictionary](docs/DATA_DICTIONARY.md) · [API guide](docs/API_DOCUMENTATION.md)
-- Evidence · [ML methodology](docs/ML_METHODOLOGY.md) · [Evaluation](docs/EVALUATION_AND_RESULTS.md) · [Limitations](docs/LIMITATIONS_AND_FUTURE_WORK.md) · [References](docs/REFERENCES.md)
-- Verification · [Final tests](docs/FINAL_TEST_REPORT.md) · [Deployment guide](docs/DEPLOYMENT_GUIDE.md) · [Security audit](docs/SECURITY_AUDIT.md)
-
-## Related ML research and contribution
-
-This repository is the single hackathon submission and contains the integrated application and ML code. The related repository contains ML research and development contributions. [Related ML research and contribution](https://github.com/PriyankaEaty14/Safarnama)
+- [Project proposal](01_PROJECT_PROPOSAL.md) · [Technical note](02_TECHNICAL_NOTE.md)
+- [Deployment guide](docs/DEPLOYMENT_GUIDE.md) · [Data dictionary](docs/DATA_DICTIONARY.md) · [Security audit](docs/SECURITY_AUDIT.md)
+- [Related Member 1 ML research and contributions](https://github.com/PriyankaEaty14/Safarnama)

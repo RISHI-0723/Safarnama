@@ -35,13 +35,13 @@ flowchart LR
     App --> Users["Commuters and reviewers"]
 ```
 
-**Data and processing.** The organizer brief identifies the October Delhi ETM CSV ZIP and approximately 2.56 million ticket entries from 1–31 October. Fields include passenger counts, route, stop names, vehicle, ticket issue time, amount, ticket type and AC flag. Member 1's pipeline read CSV chunks, accepted positive whole passenger counts and valid essential fields, preserved rejected rows locally, and produced cleaned Parquet. GTFS contributes stop codes and coordinates, directional route labels, runs, stop order, service calendars and shapes. The production importer validates the ZIP and writes indexed SQLite. Raw ticket data and detailed vehicle-linked outputs stay outside the public repository.
+**Data and processing.** The organizer brief identifies the October Delhi ETM CSV ZIP and approximately 2.56 million ticket entries from 1–31 October. Fields include passenger counts, route, stop names, vehicle, ticket issue time, amount, ticket type and AC flag. Member 1's pipeline read CSV chunks, accepted positive whole passenger counts and valid essential fields, preserved rejected rows locally, and produced cleaned Parquet. GTFS contributes stop codes and coordinates, directional route labels, runs, stop order, service calendars and shapes. The production importer validates the ZIP and writes the indexed timetable to hosted PostgreSQL or local SQLite. Raw ticket data and detailed vehicle-linked outputs stay outside the public repository.
 
 **Matching and model.** V2 compares names within the same route, accepting unique exact and conservative fuzzy matches. V3 recovers uniquely resolvable components of compound GTFS names. The order check asks whether boarding precedes destination on a compatible scheduled pattern. Separately, historical ticket demand sums passengers per route, date and hour and averages over matching weekdays. That model provides a route-hour estimate with a descriptive standard deviation and an observed-day count.
 
 **Journey experience.** A commuter selects two stops and Delhi departure time. The backend checks service calendars and overnight offsets, finds direct and feasible one-transfer options, removes equivalent schedules and ranks by arrival or a transfer penalty. The UI explains transfers and shows verified map shapes. Supported routes can show historical demand by time. The app supplies an explicit unavailable response for segment crowding and seats when no validated provider exists.
 
-**Technology.** The interface uses React, Vite, Leaflet and Recharts. FastAPI, Pydantic and SQLAlchemy serve the indexed SQLite timetable and validated ML artifact. Pandas and RapidFuzz support the offline workflow; CatBoost is a comparison model. Docker Compose and Caddy package the local demo.
+**Technology.** The interface uses React, Vite, Leaflet and Recharts. FastAPI, Pydantic and SQLAlchemy serve the indexed timetable and validated ML artifact. Pandas and RapidFuzz support the offline workflow, and CatBoost is a comparison model. The public deployment uses Vercel, Render and Neon PostgreSQL. Docker Compose and Caddy package the local demo.
 
 ## Evaluation and judging evidence
 
@@ -60,7 +60,7 @@ The walkthrough uses the actual static feed. On **717AUP**, Friday at **08:00 IS
 
 For commuters, timetable, transfer and demand context can support informed comparisons even where occupancy is unknown. For operators, published service patterns and route-hour demand may highlight periods for closer inspection. Those aggregates are useful for prioritizing investigation. Fleet allocation and comfort decisions need measured per-vehicle evidence.
 
-The next milestone is to validate geographic stop matches and connect tickets to confirmed runs. Independent passenger counts and verified capacity would support segment categories, uncertainty calibration and comfort-aware routing. Expanded artifact coverage and an authorized live feed are separate goals. The current submission is a locally verified demonstration. Public deployment and a clean build on the target staging or Windows host remain outstanding. [Limitations](docs/LIMITATIONS_AND_FUTURE_WORK.md)
+The next milestone is to validate geographic stop matches and connect tickets to confirmed runs. Independent passenger counts and verified capacity would support segment categories, uncertainty calibration and comfort-aware routing. Expanded artifact coverage and an authorized live feed are separate goals. The submission is publicly deployed with the imported timetable and historical demand artifact. A clean build on an additional staging or Windows host remains unverified. [Live application](https://safarnama-eosin.vercel.app/) [Limitations](docs/LIMITATIONS_AND_FUTURE_WORK.md)
 
 ## References and source
 
