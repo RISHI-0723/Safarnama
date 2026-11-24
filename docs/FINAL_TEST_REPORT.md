@@ -96,7 +96,5 @@ full-size re-import and clean image build were not repeated in the
 limited workspace.
 
 All ten Mermaid blocks in the submission documentation were parsed and
-rendered. The proposal and technical note were exported from Markdown to
-Word and PDF. Both Word packages passed integrity and structure checks.
-All four proposal pages and five technical-note pages were rasterized and
-reviewed, including diagram, table and footer placement.
+rendered. The project proposal and technical note are published as Markdown
+and linked from the repository README.

@@ -85,8 +85,8 @@ The verified code passed 37 backend, 43 ML and 14 Chromium tests. The web build 
 
 ## Submission documents
 
-- Project proposal · [Markdown](docs/01_PROJECT_PROPOSAL.md) · [PDF](docs/01_PROJECT_PROPOSAL.pdf) · [Word](docs/01_PROJECT_PROPOSAL.docx)
-- Technical note · [Markdown](docs/02_TECHNICAL_NOTE.md) · [PDF](docs/02_TECHNICAL_NOTE.pdf) · [Word](docs/02_TECHNICAL_NOTE.docx)
+- [Project proposal](docs/01_PROJECT_PROPOSAL.md)
+- [Technical note](docs/02_TECHNICAL_NOTE.md)
 - Engineering · [Architecture](docs/ARCHITECTURE.md) · [Data pipeline](docs/DATA_PIPELINE.md) · [Data dictionary](docs/DATA_DICTIONARY.md) · [API guide](docs/API_DOCUMENTATION.md)
 - Evidence · [ML methodology](docs/ML_METHODOLOGY.md) · [Evaluation](docs/EVALUATION_AND_RESULTS.md) · [Limitations](docs/LIMITATIONS_AND_FUTURE_WORK.md) · [References](docs/REFERENCES.md)
 

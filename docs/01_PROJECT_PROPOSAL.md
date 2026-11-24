@@ -1,11 +1,10 @@
----
-title: "SAFARNAMA"
-subtitle: "Project Proposal | Crowdedness-Aware Delhi Bus Journey Planner"
-author: "Team SAFARNAMA"
-date: "Transport Stack Hackathon 2026 · Problem Statement 2 · Phase 1"
----
+# SAFARNAMA Project Proposal
 
-# Executive summary
+**Crowdedness-Aware Delhi Bus Journey Planner**
+
+Team SAFARNAMA · Transport Stack Hackathon 2026 · Problem Statement 2 · Phase 1
+
+## Executive summary
 
 SAFARNAMA helps Delhi bus commuters compare scheduled journeys and interpret historical ticket demand. The prototype combines the published GTFS timetable with a historical model built from October 2026 electronic ticket machine (ETM) records. It can show a direct or one-transfer itinerary, verified route geometry and historical ticketed passenger activity for a supported directional route and hour. Research also explores ticket-derived passenger loads on stretches. Deployment of crowding bands and comfort-based ranking requires validated trip assignments, independent passenger counts and vehicle capacity.
 

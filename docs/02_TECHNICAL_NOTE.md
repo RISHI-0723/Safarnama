@@ -1,11 +1,10 @@
----
-title: "SAFARNAMA"
-subtitle: "Technical Note | Data, Models and Journey Planning"
-author: "Team SAFARNAMA"
-date: "Transport Stack Hackathon 2026 · Problem Statement 2 · Phase 1"
----
+# SAFARNAMA Technical Note
 
-# Abstract
+**Data, Models and Journey Planning**
+
+Team SAFARNAMA · Transport Stack Hackathon 2026 · Problem Statement 2 · Phase 1
+
+## Abstract
 
 SAFARNAMA integrates indexed Delhi static GTFS, a deterministic schedule planner and a validated historical ticket-demand artifact. The data workflow separately explores candidate vehicle-run reconstruction and conditional ticket-load bounds. The deployed predictor covers 20 of 2,574 directional GTFS routes. Its metric is estimated ticketed passengers per route-hour. Independent segment occupancy, capacity, and comfort-ranking evidence remains unavailable.
 
