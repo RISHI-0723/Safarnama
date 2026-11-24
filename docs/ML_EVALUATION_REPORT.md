@@ -47,3 +47,31 @@ the manifest’s named CSV and the deployment can use a custom crosswalk.
 Coverage and missing buckets are visible through the API. Routes without an
 accepted mapping return an explicit unsupported status.
 [Reproducibility instructions](../ml/REPRODUCIBILITY.md)
+
+## Runtime coverage and handoff
+
+The demo contains 20 mapped directional GTFS routes and 3,360 distinct
+weekday-hour keys. All 168 buckets per mapped route are present. The other
+2,554 imported routes are outside the reviewed crosswalk. Examples are
+73UP (2206), 85EXTUP (2342), and 85UP (2343). In the 24 November integration
+check, all 20 mapped routes agreed with the supplied CSV. For 717AUP
+(2171), the Friday 08:00 IST lookup returned 82.6 ticketed passengers per
+route-hour, standard deviation 27.68 and five historical calendar days.
+
+The backend uses the original predictor and lookup modules under `ml/src/`.
+Startup validates the manifest, schema, artifact hash, row counts, and
+explicit route and agency mapping against the imported GTFS. Response
+validation checks the lookup's schema and provenance. The accepted original
+CRLF checksum can be reproduced from the Git LF copy without changing the
+file. Other checksum mismatches disable the estimate and schedule planning
+remains available. The API gives separate reasons for unsupported routes,
+missing buckets, disabled or missing artifacts, invalid artifacts or
+mappings, and lookup errors. A valid zero stays a displayed estimate.
+
+Inspect the live coverage with `GET /api/v1/demand/coverage`, validate the
+feed and artifact with `scripts/validate_data`, and run the ML checks with
+`scripts/validate_ml`. The reported 354,816-row research export and raw ETM
+observations remain external. The existing `SegmentKey` and `MLAdapter`
+interfaces handle verified leg context. The segment provider remains
+unavailable until a suitable, ground-truthed model exists.
+[API contract](API_CONTRACT.md) · [Original Member 1 handoff](../ml/outputs/SAFARNAMA_BACKEND_HANDOFF.md)

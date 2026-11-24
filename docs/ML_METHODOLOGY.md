@@ -35,7 +35,7 @@ The adapter verifies the reviewed directional GTFS crosswalk and resolves
 the lookup in Asia/Kolkata. An absent route or key returns a status and
 null estimate. An actual recorded aggregate mean of zero remains zero.
 The frontend displays the source, model, schema version,
-and descriptive variability where available. [Coverage and API outcomes](ML_COVERAGE_REPORT.md)
+and descriptive variability where available. [Coverage and API outcomes](ML_EVALUATION_REPORT.md)
 
 ## Experimental ticket-led load
 

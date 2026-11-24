@@ -98,3 +98,61 @@ limited workspace.
 All ten Mermaid blocks in the submission documentation were parsed and
 rendered. The project proposal and technical note are published as Markdown
 and linked from the repository README.
+
+## Historical verification milestones
+
+Earlier reports quoted different suite sizes as the project evolved. These
+counts refer to the original checkouts and do not supersede the final
+verification. All milestones below were recorded on 23–24 November 2026.
+
+| Milestone | Backend | ML | Browser |
+|---|---:|---:|---|
+| Early repair and targeted baseline | 2 initially, 15 after repair | — | Manual checks |
+| Schedule-only verification | 20 | — | 6 Chromium |
+| Integrated demand baseline at `6de8b403` | 28 | 43 | 7 Chromium |
+| Hardened runtime at `d7ca5e1` | 33 | 43 | 8 Chromium |
+| Journey update and hackathon submission | 37 | 43 | 14 Chromium |
+
+In the early manual run, the Anand Vihar ISBT to Shivaji Stadium Terminal
+journey showed the Karkardooma transfer, two route polylines and 21 markers.
+Editing the destination cleared stale results. Stopping the backend exposed
+an analytics retry state, and restarting it restored the counts. The
+backend exposed 11 OpenAPI paths. A local transfer search in the test client
+took approximately 4.7 seconds. The baseline main JavaScript chunk was
+515.73 kB before later route-level splitting.
+
+The schedule-only Compose run built both images and imported the real feed
+under the non-root backend user. It checked Caddy, SPA fallback, readiness,
+12 OpenAPI paths, SQLite integrity and foreign keys. Its six Chromium tests
+passed in 33.7 seconds. The build produced a 354.06 kB main JavaScript chunk
+with separate explorer and analytics chunks. The browser checks covered
+keyboard and mouse stop selection, transfers, explicit crowding availability,
+390 px and 820 px layouts, and empty and retry states. An independent
+OpenStreetMap tile request returned HTTP 200. The browser suite isolated
+basemap and font providers. An earlier Leaflet cleanup error during zoom
+was corrected and passed the rerun.
+
+The recorded direct search from stop `1` to `7547` returned 12 alternatives,
+first 08:35–08:49, and 46 geometry points. The transfer search from
+`917` to `365` also returned 12 alternatives, first 08:40–09:22, and 43
+and 152 points for the two legs. Both searches used 23 November 2026.
+Through Caddy the direct and transfer searches took 0.286 and 0.798 seconds
+in that run. Cold and cached analytics took 6.499 and 0.008 seconds. These
+observations apply to that local run. [Later benchmarks](PERFORMANCE_REPORT.md)
+
+The integration milestone also built a backend image and exercised readiness
+and historical lookup on the read-only feed. One initial container launch
+ran out of disk space and succeeded after pruning rebuildable cache. The
+first ML pytest invocation from the repository root had import problems.
+Running from `ml/` resolved that issue. The separate component diagnostic
+requires upstream `route_stops.parquet`, while the verified runtime suite
+uses the committed demo artifact.
+
+## Repository organization verification
+
+After moving the submission documents and consolidating earlier evidence,
+`SAFARNAMA_PYTHON=/workspace/work/.venv/bin/python scripts/run_tests` ran
+37 backend tests, 43 ML tests, the real prediction lookup utility, the Vite
+production build and `docker compose config -q` successfully. The browser
+results above refer to the prior end-to-end verification of the same
+application source.

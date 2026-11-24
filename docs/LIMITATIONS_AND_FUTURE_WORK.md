@@ -17,4 +17,25 @@ observed counts and actual capacities. Route and hour accuracy should be
 measured on unseen periods with known service coverage. Define crowding
 categories and a comfort tradeoff only after calibration. For planner
 operations, verify a new deployment with a clean image build, staging load
-tests and the authorized feed. [Current project status](FINAL_PROJECT_STATUS.md)
+tests and the authorized feed. [Deployment and verification](DEPLOYMENT_GUIDE.md)
+
+## Submission and deployment status
+
+The current application is verified for local demonstration with the
+supplied Delhi feed and demo demand artifact. A clean image build on the
+target host, Windows Docker Desktop restart, production capacity checks,
+public hosting, and an end-to-end authorized live-provider run remain
+unverified. The committed project provides local verification scripts.
+
+Journey search covers direct and one-transfer routes. Its six-hour window
+applies to both boardings, while arrivals may occur later. Feed-declared
+stop-level transfers are supported. Route-specific, trip-specific and
+in-seat transfer rules require additional implementation. Geography comes
+from published shapes. Missing or ambiguous alignment stays unavailable.
+Basemap tiles and optional external fonts need connectivity.
+
+Before adding a comfort ranking, validate trip and segment identity, capacity
+provenance, thresholds and source coverage on comparable alternatives. Test
+partial-coverage and error states, tie and fallback rules, and ranked options
+on held-out journeys. [Journey validation](JOURNEY_PLANNER_VALIDATION.md) ·
+[Performance evidence](PERFORMANCE_REPORT.md) · [Test report](FINAL_TEST_REPORT.md)

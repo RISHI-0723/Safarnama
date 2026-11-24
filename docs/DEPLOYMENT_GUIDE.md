@@ -152,11 +152,9 @@ vehicle responses from `/api/v1/live/vehicles` without printing the key or
 query URL. The feed contains positions. It supplies no verified passenger
 occupancy for the app. [Apply for Delhi live access](https://otd.delhi.gov.in/data/realtime/)
 
-The GitHub workflow builds both containers after running baseline checks.
-Setting the repository variable `SAFARNAMA_GTFS_URL` to an authorized HTTPS
-download for the exact verified static archive enables real-feed browser tests.
-The workflow checks the fixed SHA-256 before import. Keep private download
-credentials out of repository variables.
+Run `scripts/run_tests` for local automated verification. Hosted verification
+remains unconfigured on the submission branch. Keep private feed download
+credentials in an authorized local or deployment environment.
 
 ## Update an existing Windows Docker Desktop installation
 

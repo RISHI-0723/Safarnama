@@ -52,3 +52,11 @@ FastAPI uses SQLAlchemy and SQLite indexes for stops, departure ranges and
 ordered trip calls. Route geometry comes from stored GTFS shapes. Lower-cost
 schedule requests and health checks are independent of the optional historical
 artifact and live feed. [Deployment guide](DEPLOYMENT_GUIDE.md)
+
+The React interface lazy-loads its Leaflet explorer and Recharts dashboard.
+Expanded journey cards share identical route-day-hour demand lookups within
+the itinerary and cancel them when details close or search inputs change.
+The importer stages the SQLite replacement beside the current file and checks
+relationships before replacing it. These boundaries keep timetable search
+usable when an optional prediction source or external map layer is unavailable.
+[Integration provenance](INTEGRATION_REPORT.md)

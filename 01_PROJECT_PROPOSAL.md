@@ -54,17 +54,17 @@ flowchart LR
 | Historical mean versus CatBoost, top-20 WAPE | 29.52% versus 45.51% |
 | Verified runtime demand coverage | 20 directional routes and 3,360 route-weekday-hour estimates |
 
-The walkthrough uses the actual static feed. On **717AUP**, Friday at **08:00 IST**, the API returns **82.6 estimated ticketed passengers per route-hour**, verified against the delivered CSV. The interface shows a separate crowding status and gives a reason on unsupported routes. This demonstrates grounded information and clear communication without converting a historical aggregate into an onboard count. The reported model comparison used 1–24 October for training and 25–31 October for selection. That final week supplies comparative evidence, with no untouched test period. [Detailed results](EVALUATION_AND_RESULTS.md)
+The walkthrough uses the actual static feed. On **717AUP**, Friday at **08:00 IST**, the API returns **82.6 estimated ticketed passengers per route-hour**, verified against the delivered CSV. The interface shows a separate crowding status and gives a reason on unsupported routes. This demonstrates grounded information and clear communication without converting a historical aggregate into an onboard count. The reported model comparison used 1–24 October for training and 25–31 October for selection. That final week supplies comparative evidence, with no untouched test period. [Detailed results](docs/EVALUATION_AND_RESULTS.md)
 
 ## Impact and next steps
 
 For commuters, timetable, transfer and demand context can support informed comparisons even where occupancy is unknown. For operators, published service patterns and route-hour demand may highlight periods for closer inspection. Those aggregates are useful for prioritizing investigation. Fleet allocation and comfort decisions need measured per-vehicle evidence.
 
-The next milestone is to validate geographic stop matches and connect tickets to confirmed runs. Independent passenger counts and verified capacity would support segment categories, uncertainty calibration and comfort-aware routing. Expanded artifact coverage and an authorized live feed are separate goals. The current submission is a locally verified demonstration. Public deployment and a clean build on the target staging or Windows host remain outstanding. [Limitations](LIMITATIONS_AND_FUTURE_WORK.md)
+The next milestone is to validate geographic stop matches and connect tickets to confirmed runs. Independent passenger counts and verified capacity would support segment categories, uncertainty calibration and comfort-aware routing. Expanded artifact coverage and an authorized live feed are separate goals. The current submission is a locally verified demonstration. Public deployment and a clean build on the target staging or Windows host remain outstanding. [Limitations](docs/LIMITATIONS_AND_FUTURE_WORK.md)
 
 ## References and source
 
 - [Integrated submission repository](https://github.com/RISHI-0723/Safarnama)
 - [Delhi Transport Stack data portal](https://delhi.transportstack.in)
 - [GTFS Schedule Reference](https://gtfs.org/documentation/schedule/reference/)
-- [Member 1 model-selection and validation evidence](../ml/outputs/ML_VALIDATION_REPORT.md)
+- [Member 1 model-selection and validation evidence](ml/outputs/ML_VALIDATION_REPORT.md)

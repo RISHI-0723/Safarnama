@@ -58,3 +58,12 @@ planner enforces the selected service date and handles GTFS times beyond
 24:00 against the originating service day. This archive supplies no
 validated walking distance or boarding guarantees.
 [Journey planner validation](JOURNEY_PLANNER_VALIDATION.md)
+
+## Original import details
+
+The schedule milestone verified two `feed_info.txt` records. The imported
+database recorded 18,457 departures at GTFS hour 24 or later and the
+generated SQLite file was about 330 MB. Every supplied trip had a blank
+`direction_id`. The archive and database are local inputs and outputs,
+respectively. Use the recorded feed digest to reproduce the import.
+[Historical test evidence](FINAL_TEST_REPORT.md#historical-verification-milestones)
